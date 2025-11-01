@@ -1,0 +1,11 @@
+.DS_Store
+.env.localhost
+.env.local
+.env.dev
+.env.prod
+.next
+node_modules
+*.tsbuildinfo
+*.img
+*.vmdk
+out
