@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DitheredGradient, generateDitheredGradientImage } from "@/lib/backgrounds/dithered-gradient";
+import {
+  DitheredGradient,
+  generateDitheredGradientImage,
+} from "@/lib/backgrounds/dithered-gradient";
 import {
   type BackgroundProfile,
   createRandomBackgroundProfile,
@@ -47,9 +50,36 @@ export default function Page() {
   const containerRef = useRef<HTMLDivElement>(null);
   const gradientRef = useRef<DitheredGradient | null>(null);
 
-  const initialProfile = useMemo(() => createRandomBackgroundProfile(), []);
+  // Use deterministic default for both SSR and initial client render to avoid hydration mismatch
+  const deterministicProfile: BackgroundProfile = useMemo(
+    () => ({
+      colors: ["#fdfdfd", "#ededed", "#d5d5d5"] as [string, string, string],
+      speed: 0,
+      noiseStrength: 0.4,
+      intensity: 0.36,
+      noiseDensityScale: 0.825,
+      frequencyScale: 0.945,
+      amplitudeScale: 0.95,
+      dither: {
+        enabled: true,
+        ditherType: "4x4" as const,
+        ditherStrength: 0.725,
+        levels: 4,
+        pixelSize: 1.6,
+        colorFront: "#ededed",
+        colorBack: "#d5d5d5",
+        colorHighlight: "#fdfdfd",
+        useOriginalColors: false,
+      },
+      performance: {
+        renderScale: 0.89,
+      },
+    }),
+    []
+  );
+
   const [{ gradient, dither, performance }, setConfigs] = useState(() =>
-    createStateFromProfile(initialProfile)
+    createStateFromProfile(deterministicProfile)
   );
 
   const [downloadWidth, setDownloadWidth] = useState(1920);
@@ -59,6 +89,13 @@ export default function Page() {
     (profile: BackgroundProfile) => createStateFromProfile(profile),
     []
   );
+
+  // Regenerate with random values once mounted on client
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setConfigs(profileToState(createRandomBackgroundProfile()));
+    }
+  }, [profileToState]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -100,7 +137,11 @@ export default function Page() {
 
   const setGradientColor = (index: number, color: string) => {
     setConfigs((prev) => {
-      const colors = [...prev.gradient.colors] as [string, string, string];
+      const colors = [...(prev.gradient.colors ?? [])] as [
+        string,
+        string,
+        string
+      ];
       colors[index] = color;
       return {
         ...prev,
@@ -169,7 +210,7 @@ export default function Page() {
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
-              Dice — Dithered Canvas Engine
+              Dice by Spicadust
             </h1>
             <p className="text-sm text-muted-foreground">
               Fine-tune WebGL dithered gradients and export them as PNG images.
@@ -187,26 +228,23 @@ export default function Page() {
       <section className="mx-auto grid w-full max-w-6xl flex-1 gap-6 p-4 pb-12 lg:grid-cols-[minmax(0,_1fr)_380px]">
         <Card className="relative overflow-hidden rounded-2xl border border-border/60 bg-muted/40">
           <div className="absolute inset-0">
-            <div
-              ref={containerRef}
-              className="absolute inset-0"
-            />
+            <div ref={containerRef} className="absolute inset-0" />
           </div>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent p-4">
             <div className="pointer-events-auto flex flex-wrap items-center gap-3">
               <ParameterPill
                 label="Noise"
-                value={gradient.noiseStrength.toFixed(2)}
+                value={gradient.noiseStrength?.toFixed(2) ?? "0.00"}
               />
               <ParameterPill
                 label="Frequency"
-                value={gradient.frequency.toFixed(2)}
+                value={gradient.frequency?.toFixed(2) ?? "0.00"}
               />
               <ParameterPill
                 label="Amplitude"
-                value={gradient.amplitude.toFixed(2)}
+                value={gradient.amplitude?.toFixed(2) ?? "0.00"}
               />
-              <ParameterPill label="Dither" value={dither.ditherType} />
+              <ParameterPill label="Dither" value={dither.ditherType ?? ""} />
             </div>
           </div>
         </Card>
@@ -242,7 +280,8 @@ export default function Page() {
                 }
               />
               <div className="text-xs text-muted-foreground">
-                Controls the internal render resolution. Lower values trade detail for speed.
+                Controls the internal render resolution. Lower values trade
+                detail for speed.
               </div>
             </div>
           </div>
@@ -252,13 +291,15 @@ export default function Page() {
           <section className="space-y-4">
             <h2 className="text-lg font-semibold">Gradient</h2>
             <div className="grid grid-cols-3 gap-4">
-              {gradient.colors.map((color, index) => (
+              {gradient.colors?.map((color, index) => (
                 <div key={index} className="space-y-2">
                   <Label>Color {index + 1}</Label>
                   <Input
                     type="color"
                     value={color}
-                    onChange={(event) => setGradientColor(index, event.target.value)}
+                    onChange={(event) =>
+                      setGradientColor(index, event.target.value)
+                    }
                     className="h-10 cursor-pointer"
                   />
                 </div>
@@ -270,7 +311,7 @@ export default function Page() {
               min={0}
               max={2}
               step={0.01}
-              value={gradient.noiseDensity}
+              value={gradient.noiseDensity ?? 0}
               onChange={(value) => setGradientValue({ noiseDensity: value })}
             />
             <SliderField
@@ -278,7 +319,7 @@ export default function Page() {
               min={0}
               max={3}
               step={0.01}
-              value={gradient.noiseStrength}
+              value={gradient.noiseStrength ?? 0}
               onChange={(value) => setGradientValue({ noiseStrength: value })}
             />
             <SliderField
@@ -286,7 +327,7 @@ export default function Page() {
               min={0}
               max={2}
               step={0.01}
-              value={gradient.frequency}
+              value={gradient.frequency ?? 0}
               onChange={(value) => setGradientValue({ frequency: value })}
             />
             <SliderField
@@ -294,7 +335,7 @@ export default function Page() {
               min={0}
               max={2}
               step={0.01}
-              value={gradient.amplitude}
+              value={gradient.amplitude ?? 0}
               onChange={(value) => setGradientValue({ amplitude: value })}
             />
             <SliderField
@@ -302,7 +343,7 @@ export default function Page() {
               min={0}
               max={1}
               step={0.01}
-              value={gradient.intensity}
+              value={gradient.intensity ?? 0}
               onChange={(value) => setGradientValue({ intensity: value })}
             />
             <SliderField
@@ -310,7 +351,7 @@ export default function Page() {
               min={0}
               max={1}
               step={0.01}
-              value={gradient.speed}
+              value={gradient.speed ?? 0}
               onChange={(value) => setGradientValue({ speed: value })}
             />
           </section>
@@ -344,7 +385,7 @@ export default function Page() {
               min={0}
               max={1}
               step={0.01}
-              value={dither.ditherStrength}
+              value={dither.ditherStrength ?? 0}
               onChange={(value) => setDitherValue({ ditherStrength: value })}
             />
             <SliderField
@@ -352,15 +393,17 @@ export default function Page() {
               min={2}
               max={16}
               step={1}
-              value={dither.levels}
-              onChange={(value) => setDitherValue({ levels: Math.round(value) })}
+              value={dither.levels ?? 0}
+              onChange={(value) =>
+                setDitherValue({ levels: Math.round(value) })
+              }
             />
             <SliderField
               label="Pixel size"
               min={0.5}
               max={8}
               step={0.1}
-              value={dither.pixelSize}
+              value={dither.pixelSize ?? 0}
               onChange={(value) => setDitherValue({ pixelSize: value })}
             />
             <div className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
@@ -371,7 +414,7 @@ export default function Page() {
                 </p>
               </div>
               <Switch
-                checked={dither.useOriginalColors}
+                checked={dither.useOriginalColors ?? false}
                 onCheckedChange={(checked) =>
                   setDitherValue({ useOriginalColors: checked })
                 }
@@ -385,7 +428,7 @@ export default function Page() {
                 </p>
               </div>
               <Switch
-                checked={dither.enabled}
+                checked={dither.enabled ?? false}
                 onCheckedChange={(checked) =>
                   setDitherValue({ enabled: checked })
                 }
