@@ -139,6 +139,7 @@ export default function Page() {
 
   const [downloadWidth, setDownloadWidth] = useState(1920);
   const [downloadHeight, setDownloadHeight] = useState(1080);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const performance = useMemo(() => ({ renderScale: null }), []);
 
   // Generate a random profile for the page background
@@ -250,6 +251,36 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Generate preview image when configuration changes
+  useEffect(() => {
+    if (!hasInitializedRandom || typeof window === "undefined") return;
+
+    const previewMaxSize = 800;
+    const aspectRatio = previewAspectRatio;
+    let previewWidth = previewMaxSize;
+    let previewHeight = previewMaxSize / aspectRatio;
+
+    // If height would be too large, constrain by height instead
+    if (previewHeight > previewMaxSize) {
+      previewHeight = previewMaxSize;
+      previewWidth = previewMaxSize * aspectRatio;
+    }
+
+    try {
+      const dataUrl = generateDitheredGradientImage({
+        width: Math.round(previewWidth),
+        height: Math.round(previewHeight),
+        gradient,
+        dither,
+        performance,
+      });
+      setPreviewImageUrl(dataUrl);
+    } catch (error) {
+      console.error("Failed to generate preview image:", error);
+      setPreviewImageUrl(null);
+    }
+  }, [gradient, dither, performance, previewAspectRatio, hasInitializedRandom]);
+
   const setGradientValue = (partial: Partial<GradientState>) => {
     setConfigs((prev) => ({
       ...prev,
@@ -348,7 +379,26 @@ export default function Page() {
         </header>
 
         <section className="mx-auto grid w-full max-w-[1340px] flex-1 gap-6 p-4 pb-12 lg:grid-cols-[minmax(0,_1fr)_380px]">
-          <Card className="flex aspect-square w-full max-w-full self-center flex-col overflow-hidden border border-border/60 bg-card shadow-sm"></Card>
+          <Card className="flex aspect-square w-full max-w-full self-center flex-col overflow-hidden border border-border/60 bg-card shadow-sm">
+            {previewImageUrl ? (
+              <div className="flex h-full w-full items-center justify-center">
+                <img
+                  src={previewImageUrl}
+                  alt="Preview"
+                  className="object-contain"
+                  style={{
+                    aspectRatio: previewAspectRatio,
+                    maxWidth: "80%",
+                    maxHeight: "80%",
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                <span className="text-sm">Generating preview...</span>
+              </div>
+            )}
+          </Card>
 
           <Card className="flex flex-col gap-6 overflow-hidden border border-border/60 bg-card p-4 shadow-sm self-center">
             <div className="space-y-4">
