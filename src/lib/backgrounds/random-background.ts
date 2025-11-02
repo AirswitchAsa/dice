@@ -39,7 +39,7 @@ export function createRandomBackgroundProfile(
 
   return {
     colors: palette,
-    speed: 0,
+    speed: 0.85 + rng() * 0.35,
     noiseStrength,
     intensity,
     noiseDensityScale: 0.7 + rng() * 0.25,

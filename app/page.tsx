@@ -93,7 +93,10 @@ const isHexColorDark = (value: string) => {
 function createStateFromProfile(profile: BackgroundProfile, meshShape = 0) {
   return {
     gradient: profileToGradient(profile, meshShape),
-    dither: { ...profile.dither },
+    dither: {
+      ...profile.dither,
+      useOriginalColors: profile.dither.useOriginalColors ?? false,
+    },
   };
 }
 
@@ -109,7 +112,7 @@ export default function Page() {
   const deterministicProfile: BackgroundProfile = useMemo(
     () => ({
       colors: ["#fdfdfd", "#ededed", "#d5d5d5"] as [string, string, string],
-      speed: 0,
+      speed: 1,
       noiseStrength: 0.4,
       intensity: 0.36,
       noiseDensityScale: 0.825,
@@ -137,6 +140,7 @@ export default function Page() {
     createStateFromProfile(deterministicProfile)
   );
 
+  const [meshTime, setMeshTime] = useState(0);
   const [downloadWidth, setDownloadWidth] = useState(1920);
   const [downloadHeight, setDownloadHeight] = useState(1080);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
@@ -148,12 +152,18 @@ export default function Page() {
       return deterministicProfile;
     }
     return createRandomBackgroundProfile();
-  }, []);
+  }, [deterministicProfile]);
 
-  const backgroundState = useMemo(
-    () => createStateFromProfile(backgroundProfile),
-    [backgroundProfile]
-  );
+  const backgroundState = useMemo(() => {
+    const state = createStateFromProfile(backgroundProfile);
+    return {
+      gradient: {
+        ...state.gradient,
+        speed: 0,
+      },
+      dither: state.dither,
+    };
+  }, [backgroundProfile]);
 
   const previewAspectRatio = useMemo(() => {
     if (!Number.isFinite(downloadWidth) || !Number.isFinite(downloadHeight)) {
@@ -174,6 +184,7 @@ export default function Page() {
   useEffect(() => {
     if (typeof window !== "undefined" && !hasInitializedRandom) {
       setConfigs(profileToState(createRandomBackgroundProfile()));
+      setMeshTime(Math.random() * 10);
       setHasInitializedRandom(true);
     }
   }, [profileToState, hasInitializedRandom]);
@@ -204,6 +215,7 @@ export default function Page() {
         performance,
       });
       gradientRef.current = instance;
+      instance.setManualTime(meshTime);
       instance.start();
       hasInitializedGradient.current = true;
     }, 0);
@@ -229,6 +241,10 @@ export default function Page() {
       performance,
     });
   }, [gradient, dither, performance, hasInitializedRandom]);
+
+  useEffect(() => {
+    gradientRef.current?.setManualTime(meshTime);
+  }, [meshTime]);
 
   // Initialize background gradient
   useEffect(() => {
@@ -273,13 +289,21 @@ export default function Page() {
         gradient,
         dither,
         performance,
+        time: meshTime,
       });
       setPreviewImageUrl(dataUrl);
     } catch (error) {
       console.error("Failed to generate preview image:", error);
       setPreviewImageUrl(null);
     }
-  }, [gradient, dither, performance, previewAspectRatio, hasInitializedRandom]);
+  }, [
+    gradient,
+    dither,
+    performance,
+    previewAspectRatio,
+    hasInitializedRandom,
+    meshTime,
+  ]);
 
   const setGradientValue = (partial: Partial<GradientState>) => {
     setConfigs((prev) => ({
@@ -327,6 +351,7 @@ export default function Page() {
 
   const randomizeProfile = () => {
     setConfigs(profileToState(createRandomBackgroundProfile()));
+    setMeshTime(Math.random() * 10);
   };
 
   const handleDownload = () => {
@@ -340,6 +365,7 @@ export default function Page() {
       gradient,
       dither,
       performance,
+      time: meshTime,
     });
     const link = document.createElement("a");
     const stamp = new Date().toISOString().split("T")[0];
@@ -359,14 +385,41 @@ export default function Page() {
       />
       <main className="relative flex min-h-screen flex-col">
         <header className="border-b bg-background/70 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4">
+          <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4 px-4 py-4">
             <div>
-              <h1 className="text-xl font-semibold tracking-tight">
-                Dice by Spicadust
+              <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
+                Dice
+                <a
+                  href="https://github.com/AirswitchAsa/dice"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center transition-colors"
+                  aria-label="View on GitHub"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </a>
               </h1>
               <p className="text-sm text-muted-foreground">
-                Fine-tune WebGL dithered gradients and export them as PNG
-                images.
+                Fine-tune dithered mesh gradients. Made by{" "}
+                <a
+                  href="https://spicadust.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-foreground transition-colors hover:text-primary hover:underline"
+                >
+                  Spicadust.
+                </a>
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -378,7 +431,7 @@ export default function Page() {
           </div>
         </header>
 
-        <section className="mx-auto grid w-full max-w-[1340px] flex-1 gap-6 p-4 pb-12 lg:grid-cols-[minmax(0,_1fr)_380px]">
+        <section className="mx-auto grid w-full max-w-[1252px] flex-1 gap-6 p-4 pb-12 lg:grid-cols-[minmax(0,_1fr)_380px]">
           <Card className="flex aspect-square w-full max-w-full self-center flex-col overflow-hidden border border-border/60 bg-card shadow-sm">
             {previewImageUrl ? (
               <div className="flex h-full w-full items-center justify-center">
@@ -457,28 +510,12 @@ export default function Page() {
                 onChange={(value) => setGradientValue({ noiseStrength: value })}
               />
               <SliderField
-                label="Frequency"
+                label="Mesh time"
                 min={0}
-                max={2}
+                max={10}
                 step={0.01}
-                value={gradient.frequency ?? 0}
-                onChange={(value) => setGradientValue({ frequency: value })}
-              />
-              <SliderField
-                label="Amplitude"
-                min={0}
-                max={2}
-                step={0.01}
-                value={gradient.amplitude ?? 0}
-                onChange={(value) => setGradientValue({ amplitude: value })}
-              />
-              <SliderField
-                label="Intensity"
-                min={0}
-                max={1}
-                step={0.01}
-                value={gradient.intensity ?? 0}
-                onChange={(value) => setGradientValue({ intensity: value })}
+                value={meshTime}
+                onChange={(value) => setMeshTime(value)}
               />
             </section>
 
@@ -553,6 +590,42 @@ export default function Page() {
             </section>
           </Card>
         </section>
+
+        <footer className="mx-auto w-full max-w-[1252px] px-4 pb-12">
+          <div className="flex flex-col items-center border-t border-border/60 pt-8">
+            <div className="rounded-full bg-white/60 border border-border/40 px-2 py-0.5">
+              <div className="flex flex-wrap items-center justify-center gap-1 text-sm text-muted-foreground">
+                <div className="flex items-center">
+                  <span>Built with</span>
+                  <a
+                    href="https://github.com/paper-design/shaders"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-foreground transition-colors hover:text-primary ml-1 hover:underline"
+                  >
+                    @paper-design/shaders
+                  </a>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span>and</span>
+                  <a
+                    href="https://github.com/ruucm/shadergradient"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-foreground transition-colors hover:text-primary hover:underline"
+                  >
+                    @ruucm/shadergradient
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-full bg-white/60 border border-border/40 px-2 py-0.5 mt-4">
+              <div className="text-xs text-muted-foreground">
+                © {new Date().getFullYear()} Spicadust Inc. All rights reserved.
+              </div>
+            </div>
+          </div>
+        </footer>
       </main>
     </>
   );
@@ -624,18 +697,6 @@ function NumberField({
         }}
       />
     </div>
-  );
-}
-
-function ParameterPill({ label, value }: { label: string; value: string }) {
-  return (
-    <span
-      className={cn(
-        "rounded-full border border-border/60 bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm"
-      )}
-    >
-      {label}: <span className="font-semibold">{value}</span>
-    </span>
   );
 }
 
