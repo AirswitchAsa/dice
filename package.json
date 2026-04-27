@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "deploy": "next build && aws s3 sync out/ s3://spicadust-landing/dice/ --delete --profile shared-services && aws cloudfront create-invalidation --distribution-id EYAZYRC5Q56NY --paths '/dice/*' --profile shared-services"
   },
   "dependencies": {
     "@paper-design/shaders": "^0.0.57",
